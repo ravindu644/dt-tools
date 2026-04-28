@@ -1,6 +1,6 @@
 # dt-tools
 
-DTB and DTBO unpack, decompile, recompile, and repack tool for Android.
+Android DTB and DTBO unpack, decompile, recompile, and repack tool for Linux.
 
 This tool automates the manual process of editing Device Tree Blobs (DTB) and Device Tree Blob Overlays (DTBO) described in these resources made by me:
 - [Medium Article](https://ravindu644.medium.com/editing-android-dtb-and-dtbo-images-without-needing-the-kernel-source-8abce427b7e8)
