@@ -1,2 +1,3 @@
 dt_workdir*
 *.img
+.build
