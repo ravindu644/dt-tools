@@ -7,7 +7,7 @@
 #    https://www.youtube.com/watch?v=HyGtnaBHzNM
 #
 # Copyright (C) 2026 ravindu644 <droidcasts@protonmail.com>
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
 SCRIPT_DIR="$(dirname $(readlink -fq $0))"
 BINARIES_DIR="$SCRIPT_DIR/binaries"
