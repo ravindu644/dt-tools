@@ -1,3 +1,6 @@
 dt_workdir*
 *.img
 .build
+*.dtb
+*dts
+*dtb*

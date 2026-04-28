@@ -42,20 +42,22 @@ check_deps() {
     local imjtool="$BINARIES_DIR/$IMJTOOL_BIN"
     local mkdtimg="$BINARIES_DIR/$MKDTIMG_BIN"
 
-    if [[ ! -f "$imjtool" ]]; then
-        error "imjtool binary not found: $imjtool"
-    fi
-    if [[ ! -x "$imjtool" ]]; then
-        log "Making $IMJTOOL_BIN executable..."
-        chmod +x "$imjtool"
+    if [[ -f "$imjtool" ]]; then
+        if [[ ! -x "$imjtool" ]]; then
+            log "Making $IMJTOOL_BIN executable..."
+            chmod +x "$imjtool"
+        fi
+    else
+        warn "imjtool binary not found: $imjtool (Table based images won't work)"
     fi
 
-    if [[ ! -f "$mkdtimg" ]]; then
-        error "mkdtimg binary not found: $mkdtimg"
-    fi
-    if [[ ! -x "$mkdtimg" ]]; then
-        log "Making $MKDTIMG_BIN executable..."
-        chmod +x "$mkdtimg"
+    if [[ -f "$mkdtimg" ]]; then
+        if [[ ! -x "$mkdtimg" ]]; then
+            log "Making $MKDTIMG_BIN executable..."
+            chmod +x "$mkdtimg"
+        fi
+    else
+        warn "mkdtimg binary not found: $mkdtimg (Table based images won't work)"
     fi
 
     if ! command -v dtc &>/dev/null; then
@@ -130,12 +132,11 @@ unpack() {
     local name="$2"
 
     if [[ -z "$img" ]]; then
-        echo "Usage: ./dt-tools.sh unpack <image.img> [name]"
-        echo "  name  optional suffix (e.g. 'galaxy_s10' -> dt_workdir_galaxy_s10)"
+        echo "Usage: ./dt-tools.sh unpack <image.img/dtb> [name]"
         exit 1
     fi
 
-    [[ ! -f "$img" ]] && error "Image not found: $img"
+    [[ ! -f "$img" ]] && error "File not found: $img"
 
     if [[ -z "$name" ]]; then
         name="$(basename "$img" | sed 's/\.[^.]*$//')"
@@ -144,21 +145,30 @@ unpack() {
 
     [[ -d "$work_dir" ]] && error "Work directory '$work_dir' already exists. Remove it first or use a different name."
 
-    log "Unpacking '$img' -> $work_dir/"
     mkdir -p "$work_dir"
 
-    local imjtool="$BINARIES_DIR/$IMJTOOL_BIN"
-    "$imjtool" "$img" extract
+    # Detect raw DTB (Magic: 0xd00dfeed)
+    local magic
+    magic=$(od -An -N4 -tx1 "$img" | tr -d ' ' | head -n1)
 
-    if [[ ! -d "extracted" ]]; then
-        rm -rf "$work_dir"
-        error "imjtool produced no output."
+    if [[ "$magic" == "d00dfeed" ]]; then
+        log "Raw DTB detected: $img"
+        cp "$img" "$work_dir/raw.dtb"
+    else
+        log "Unpacking image: $img"
+        local imjtool="$BINARIES_DIR/$IMJTOOL_BIN"
+        [[ ! -f "$imjtool" ]] && error "imjtool required for this image type."
+
+        "$imjtool" "$img" extract >/dev/null
+        if [[ ! -d "extracted" ]]; then
+            rm -rf "$work_dir"
+            error "imjtool produced no output."
+        fi
+        mv extracted/* "$work_dir"/
+        rmdir extracted
     fi
 
-    mv extracted/* "$work_dir"/
-    rmdir extracted
-
-    log "Decompiling DTBs -> DTS..."
+    log "Decompiling..."
     local count=0
     for file in "$work_dir"/*.dtb; do
         [[ -f "$file" ]] || continue
@@ -172,9 +182,12 @@ unpack() {
         fi
     done
 
-    generate_config "$img" "$work_dir"
+    # only generate config if it's not a raw dtb
+    if [[ "$magic" != "d00dfeed" ]]; then
+        generate_config "$img" "$work_dir"
+    fi
 
-    success "$count DTS file(s) + config.cfg ready in ./$work_dir/"
+    success "$count DTS file(s) ready in ./$work_dir/"
 }
 
 # --- repack ---
@@ -188,9 +201,6 @@ repack() {
     fi
 
     [[ ! -d "$work_dir" ]] && error "Directory not found: $work_dir"
-    [[ ! -f "$work_dir/config.cfg" ]] && error "config.cfg not found in $work_dir. Was this unpacked with dt-tools?"
-
-    local mkdtimg="$BINARIES_DIR/$MKDTIMG_BIN"
 
     # recompile DTS -> DTB
     log "Recompiling DTS -> DTB..."
@@ -208,18 +218,32 @@ repack() {
 
     [[ $count -eq 0 ]] && error "No DTS files found in $work_dir"
 
-    local work_dir_clean="${work_dir%/}"  # strip trailing slash
+    local work_dir_clean="${work_dir%/}"
     local out_name="${work_dir_clean#$WORKDIR_PREFIX}"
-    local out_img="${out_name}_repacked.img"
 
-    log "Packing -> $out_img..."
-    "$mkdtimg" cfg_create "$out_img" "$work_dir/config.cfg" -d "$work_dir/" \
-        || error "mkdtimg cfg_create failed"
+    if [[ -f "$work_dir/config.cfg" ]]; then
+        local out_img="${out_name}_repacked.img"
+        local mkdtimg="$BINARIES_DIR/$MKDTIMG_BIN"
+        [[ ! -f "$mkdtimg" ]] && error "mkdtimg required for packing images."
+
+        log "Packing -> $out_img..."
+        "$mkdtimg" cfg_create "$out_img" "$work_dir/config.cfg" -d "$work_dir/" \
+            || error "mkdtimg cfg_create failed"
+        success "Repacked image: $out_img"
+    else
+        local out_dtb="${out_name}_repacked.dtb"
+        # for raw dtb, we expect only one dtb to have been compiled
+        local compiled_dtbs=("$work_dir"/*.dtb)
+        if [[ ${#compiled_dtbs[@]} -eq 1 ]]; then
+            cp "${compiled_dtbs[0]}" "$out_dtb"
+            success "Repacked raw DTB: $out_dtb"
+        else
+            error "Multiple DTBs found but config.cfg is missing. Don't know how to pack."
+        fi
+    fi
 
     # clean up recompiled dtbs, keep dts files intact
     rm -f "$work_dir"/*.dtb
-
-    success "Repacked image: $out_img"
 }
 
 # --- clear ---
