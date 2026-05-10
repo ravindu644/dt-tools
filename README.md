@@ -6,12 +6,6 @@ This tool automates the manual process of editing Device Tree Blobs (DTB) and De
 - [Medium Article](https://ravindu644.medium.com/editing-android-dtb-and-dtbo-images-without-needing-the-kernel-source-8abce427b7e8)
 - [YouTube Tutorial](https://www.youtube.com/watch?v=HyGtnaBHzNM)
 
-## Credits
-
-Binary credits:
-- [imjtool by Jonathan Levin](https://newandroidbook.com/tools/imjtool.html)
-- [mkdtimg (Google AOSP)](https://android.googlesource.com/platform/system/libufdt/)
-
 ## Prerequisites
 
 Install the device tree compiler:
@@ -58,6 +52,12 @@ Remove all work directories:
 ```bash
 ./dt-tools.sh clear
 ```
+
+## Credits
+
+Binary credits:
+- [imjtool by Jonathan Levin](https://newandroidbook.com/tools/imjtool.html)
+- [mkdtimg (Google AOSP)](https://android.googlesource.com/platform/system/libufdt/)
 
 ## License
 
